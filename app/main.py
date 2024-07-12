@@ -25,35 +25,35 @@ def create_select_function():
         CREATE OR REPLACE FUNCTION select_tables_within_county(grid_value text)
         RETURNS TABLE(table_name text, record jsonb) AS $$
         DECLARE
-            table_rec RECORD;
-            sql_query text;
+        table_rec RECORD;
+        sql_query text;
         BEGIN
-            FOR table_rec IN 
-                SELECT tablename 
-                FROM pg_tables 
-                WHERE schemaname = 'public'
-                AND tablename != 'spatial_ref_sys'
-            LOOP
-                sql_query := format('
-                    SELECT 
-                        %L AS table_name,
-                        jsonb_agg(t.*) AS record
-                    FROM 
-                        %I t
-                    JOIN (
-                        SELECT ST_Transform(shape, 4326) AS shape_4326 
-                        FROM grd_100k
-                        WHERE grd_100k.grid = %L
-                        UNION ALL
-                        SELECT ST_Transform(shape, 4326) AS shape_4326 
-                        FROM grd
-                        WHERE grd.grid = %L
-                    ) county 
-                    ON ST_Contains(county.shape_4326, ST_Transform(t.shape, 4326))
-                ', table_rec.tablename, table_rec.tablename, grid_value, grid_value);
-                
-                RETURN QUERY EXECUTE sql_query;
-            END LOOP;
+        FOR table_rec IN 
+        	SELECT tablename 
+        	FROM pg_tables 
+        	WHERE schemaname = 'public'
+        	AND tablename != 'spatial_ref_sys'
+        LOOP
+        	sql_query := format('
+        		SELECT 
+        			%L AS table_name,
+        			jsonb_agg(t.*) AS record
+        		FROM 
+        			%I t
+        		JOIN (
+        			SELECT ST_Transform(shape, 4326) AS shape_4326 
+        			FROM grd_50k
+        			WHERE grd_50k.grid = %L
+        			UNION ALL
+        			SELECT ST_Transform(shape, 4326) AS shape_4326 
+        			FROM grd
+        			WHERE grd.grid = %L
+        		) county 
+        		ON ST_Intersects(county.shape_4326, ST_Transform(t.shape, 4326))
+        	', table_rec.tablename, table_rec.tablename, grid_value, grid_value);
+        
+        	RETURN QUERY EXECUTE sql_query;
+        END LOOP;
         END;
         $$ LANGUAGE plpgsql;
 
