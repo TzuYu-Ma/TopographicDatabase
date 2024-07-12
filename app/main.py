@@ -87,7 +87,7 @@ def database_to_geojson_by_query(sql_query):
             "type": "FeatureCollection",
             "features": features
         }
-       # geojson_collections[table_name] = geojson
+        geojson_collections = geojson
     
     return jsonify(geojson_collections)
 
