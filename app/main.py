@@ -49,7 +49,7 @@ def create_select_function():
         			FROM grd
         			WHERE grd.grid = %L
         		) county 
-        		ON ST_Intersects(county.shape_4326, ST_Transform(t.shape, 4326))
+        		ON ST_Within(county.shape_4326, ST_Transform(t.shape, 4326))
         	', table_rec.tablename, table_rec.tablename, grid_value, grid_value);
         
         	RETURN QUERY EXECUTE sql_query;
