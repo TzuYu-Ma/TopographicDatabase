@@ -70,13 +70,23 @@ def database_to_geojson_by_query(sql_query):
         rows = cur.fetchall()
     conn.close()
 
-    result = []
+    features = []
     for row in rows:
-        result.append({
-            "table_name": row[0],
-            "record": row[1]
-        })
-    return jsonify(result)
+        table_name = row[0]
+        records = row[1]
+        for record in records:
+            feature = {
+                "type": "Feature",
+                "properties": {k: v for k, v in record.items() if k != "shape"},
+                "geometry": record["shape"]
+            }
+            features.append(feature)
+    
+    geojson = {
+        "type": "FeatureCollection",
+        "features": features
+    }
+    return jsonify(geojson)
 
 # call our general function with the provided grid
 @app.route('/<grid>', methods=['GET'])
