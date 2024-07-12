@@ -1,6 +1,7 @@
 import psycopg2
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_file
 import os
+import json
 
 # create the Flask app
 app = Flask(__name__)
@@ -57,7 +58,7 @@ def index():
     return "The API is working!"
 
 # create a general DB to GeoJSON function based on a SQL query
-def database_to_geojson_by_query(sql_query):
+def database_to_geojson_by_query(sql_query, grid):
     conn = psycopg2.connect(
         host=os.environ.get("DB_HOST"),
         database=os.environ.get("DB_NAME"),
@@ -70,10 +71,13 @@ def database_to_geojson_by_query(sql_query):
         rows = cur.fetchall()
     conn.close()
 
-    features = []
+    geojson_files = []
+
     for row in rows:
         table_name = row[0]
         records = row[1]
+        features = []
+
         for record in records:
             feature = {
                 "type": "Feature",
@@ -82,20 +86,30 @@ def database_to_geojson_by_query(sql_query):
             }
             feature["properties"]["table_name"] = table_name
             features.append(feature)
-    
-    geojson = {
-        "type": "FeatureCollection",
-        "features": features
-    }
+        
+        geojson = {
+            "type": "FeatureCollection",
+            "features": features
+        }
 
-    return jsonify(geojson)
+        # Save each table's data into a separate GeoJSON file
+        filename = f"{grid}_{table_name}.geojson"
+        with open(filename, 'w') as f:
+            json.dump(geojson, f)
 
-# call our general function with the provided grid
+        geojson_files.append(filename)
+
+    return geojson_files
+
 @app.route('/<grid>', methods=['GET'])
 def get_json(grid):
     sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
-    grid_geojson = database_to_geojson_by_query(sql_query)
-    return grid_geojson
+    geojson_files = database_to_geojson_by_query(sql_query, grid)
+    return jsonify({"files": geojson_files})
+
+@app.route('/download/<filename>', methods=['GET'])
+def download_file(filename):
+    return send_file(filename, as_attachment=True)
 
 if __name__ == "__main__":
     create_select_function()  # Create the function when the app starts
