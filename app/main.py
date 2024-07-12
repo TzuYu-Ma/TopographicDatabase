@@ -164,35 +164,10 @@ def database_to_geojson_by_query(sql_query, grid):
         logging.error(f"Error in database_to_geojson_by_query: {e}")
         return []
 
-# Function to get grid details from grd table
-def get_grid_details(grid):
-    try:
-        conn = psycopg2.connect(
-            host=os.environ.get("DB_HOST"),
-            database=os.environ.get("DB_NAME"),
-            user=os.environ.get("DB_USER"),
-            password=os.environ.get("DB_PASS"),
-            port=os.environ.get("DB_PORT"),
-        )
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM grd WHERE grid = %s", (grid,))
-            grid_details = cur.fetchone()
-        conn.close()
-        return grid_details
-    except Exception as e:
-        logging.error(f"Error in get_grid_details: {e}")
-        return None
-
 # Route to generate and list GeoJSON files with download links
 @app.route('/<grid>', methods=['GET'])
 def get_json(grid):
     try:
-        # Get grid details
-        grid_details = get_grid_details(grid)
-        if not grid_details:
-            logging.error(f"No details found for grid: {grid}")
-            return "No details found for the specified grid", 500
-
         sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
         geojson_files = database_to_geojson_by_query(sql_query, grid)
         
@@ -257,8 +232,7 @@ def get_json(grid):
             </head>
             <body>
                 <div class="container">
-                    <h1>Download GeoJSON Files for {grid}</h1>
-                    <p>Grid Details: {grid_details}</p>
+                    <h1>Download GeoJSON Files</h1>
                     <ul>
                         {html_links}
                         {zip_link}
@@ -277,3 +251,26 @@ def download_file(filename):
     return send_file(filename, as_attachment=True)
 
 # Route to download all GeoJSON files as a ZIP archive
+@app.route('/download_all/<grid>', methods=['GET'])
+def download_all_files(grid):
+    try:
+        sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
+        geojson_files = database_to_geojson_by_query(sql_query, grid)
+        
+        if not geojson_files:
+            logging.error(f"No GeoJSON files to zip for grid: {grid}")
+            return "No GeoJSON files to zip", 500
+
+        zip_filename = f"{grid}_geojson_files.zip"
+        with zipfile.ZipFile(zip_filename, 'w') as zipf:
+            for geojson_file in geojson_files:
+                zipf.write(geojson_file)
+        
+        return send_file(zip_filename, as_attachment=True)
+    except Exception as e:
+        logging.error(f"Error in download_all_files: {e}")
+        return "Internal Server Error", 500
+
+if __name__ == "__main__":
+    create_select_function()  # Create the function when the app starts
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
