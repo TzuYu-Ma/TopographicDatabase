@@ -61,8 +61,18 @@ def index():
 
 # Function to convert database records to shapefiles
 def records_to_shapefile(table_name, records):
-    shp_io = BytesIO()
-    shp = shapefile.Writer(shp_io, shapeType=shapefile.POLYGON)
+    if not records:
+        return None
+
+    geometry_type = records[0]['shape']['type']
+    if geometry_type == 'Point':
+        shp = shapefile.Writer(shapeType=shapefile.POINT)
+    elif geometry_type == 'LineString':
+        shp = shapefile.Writer(shapeType=shapefile.POLYLINE)
+    elif geometry_type == 'Polygon':
+        shp = shapefile.Writer(shapeType=shapefile.POLYGON)
+    else:
+        return None
 
     # Assuming all records have the same fields
     fields = records[0].keys()
@@ -74,14 +84,21 @@ def records_to_shapefile(table_name, records):
         attributes = [record[field] for field in fields if field != 'shape']
         shp.record(*attributes)
         geom = record['shape']['coordinates']
-        shp.poly([geom])
+        if geometry_type == 'Point':
+            shp.point(*geom)
+        elif geometry_type == 'LineString':
+            shp.line([geom])
+        elif geometry_type == 'Polygon':
+            shp.poly([geom])
 
-    shp.close()
+    shp_io = BytesIO()
+    shp.save(shp_io)
+    shp_io.seek(0)
 
     zip_io = BytesIO()
     with zipfile.ZipFile(zip_io, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for ext in ['shp', 'shx', 'dbf']:
-            zipf.writestr(f"{table_name}.{ext}", shp_io.getvalue())
+            zipf.writestr(f"{table_name}.{ext}", shp_io.read())
     zip_io.seek(0)
 
     return zip_io
@@ -106,7 +123,9 @@ def get_shapefiles(grid):
     for row in rows:
         table_name = row[0]
         records = row[1]
-        shapefiles[table_name] = records_to_shapefile(table_name, records)
+        shapefile_io = records_to_shapefile(table_name, records)
+        if shapefile_io:
+            shapefiles[table_name] = shapefile_io
 
     zip_io = BytesIO()
     with zipfile.ZipFile(zip_io, 'w', zipfile.ZIP_DEFLATED) as zipf:
