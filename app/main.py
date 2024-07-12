@@ -3,7 +3,7 @@ from flask import Flask, jsonify, send_file, url_for, render_template_string
 import os
 import json
 import zipfile
-import tempfile
+from io import BytesIO
 
 # create the Flask app
 app = Flask(__name__)
@@ -117,10 +117,9 @@ def get_json(grid):
 
     # Generate HTML links for easy clicking
     html_links = ''.join([f'<li><a href="{file["url"]}">{file["name"]}</a></li>' for file in file_links])
-    
-    # Add link to download all files as a ZIP
-    zip_url = url_for('download_zip', grid=grid, _external=True, _scheme='https')
-    html_links += f'<li><a href="{zip_url}">Download all as ZIP</a></li>'
+
+    # URL for downloading all files as a ZIP
+    zip_url = url_for('download_all', grid=grid, _external=True, _scheme='https')
 
     # Return an HTML page with clickable links
     return render_template_string(f"""
@@ -130,6 +129,8 @@ def get_json(grid):
             <ul>
                 {html_links}
             </ul>
+            <br>
+            <a href="{zip_url}">Download All as ZIP</a>
         </body>
     </html>
     """)
@@ -140,19 +141,19 @@ def download_file(filename):
     return send_file(filename, as_attachment=True)
 
 # Route to download all GeoJSON files as a ZIP
-@app.route('/download_zip/<grid>', methods=['GET'])
-def download_zip(grid):
+@app.route('/download_all/<grid>', methods=['GET'])
+def download_all(grid):
     sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
     geojson_files = database_to_geojson_by_query(sql_query, grid)
-    
-    # Create a temporary file to store the ZIP
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        with zipfile.ZipFile(tmp_file, 'w') as zipf:
-            for filename in geojson_files:
-                zipf.write(filename, os.path.basename(filename))
-        
-        tmp_file.seek(0)
-        return send_file(tmp_file.name, mimetype='application/zip', attachment_filename=f"{grid}_geojson_files.zip", as_attachment=True)
+
+    # Create a ZIP file in memory
+    memory_file = BytesIO()
+    with zipfile.ZipFile(memory_file, 'w') as zf:
+        for filename in geojson_files:
+            zf.write(filename)
+    memory_file.seek(0)
+
+    return send_file(memory_file, mimetype='application/zip', as_attachment=True, attachment_filename=f'{grid}_geojson_files.zip')
 
 if __name__ == "__main__":
     create_select_function()  # Create the function when the app starts
