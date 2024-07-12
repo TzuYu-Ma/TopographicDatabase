@@ -11,55 +11,6 @@ app = Flask(__name__)
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 
-# create the index route
-@app.route('/')
-def index():
-    return render_template_string("""
-    <!DOCTYPE html>
-    <html lang="zh-TW">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>二萬五千分之一圖幅圖號</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                background-color: #f4f4f9;
-                margin: 0;
-                padding: 20px;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                height: 100vh;
-                text-align: center;
-            }
-            h1 {
-                color: #333;
-            }
-            p {
-                font-size: 1.2em;
-                color: #666;
-                max-width: 600px;
-            }
-            .container {
-                background: white;
-                padding: 20px;
-                border-radius: 10px;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>二萬五千分之一圖幅圖號</h1>
-            <p>此網頁提供 GeoJson 格式供下載，請參照圖幅圖號，將所需圖號複製到網址欄後並按 Enter。</p>
-            <p>例: 若需要 93203NW 圖號圖資，請在網址欄最右邊加上 "/93203NW"</p>
-        </div>
-    </body>
-    </html>
-    """)
-
 # Function to create the stored function in the database
 def create_select_function():
     conn = psycopg2.connect(
@@ -110,6 +61,55 @@ def create_select_function():
         cur.execute(create_function_query)
         conn.commit()
     conn.close()
+
+# create the index route
+@app.route('/')
+def index():
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html lang="zh-TW">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>二萬五千分之一圖幅圖號</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f4f4f9;
+                margin: 0;
+                padding: 20px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+                text-align: center;
+            }
+            h1 {
+                color: #333;
+            }
+            p {
+                font-size: 1.2em;
+                color: #666;
+                max-width: 600px;
+            }
+            .container {
+                background: white;
+                padding: 20px;
+                border-radius: 10px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>二萬五千分之一圖幅圖號</h1>
+            <p>此網頁提供 GeoJson 格式供下載，請參照圖幅圖號，將所需圖號複製到網址欄後並按 Enter。</p>
+            <p>例: 若需要 93203NW 圖號圖資，請在網址欄最右邊加上 "/93203NW"</p>
+        </div>
+    </body>
+    </html>
+    """)
 
 # create a general DB to GeoJSON function based on a SQL query
 def database_to_geojson_by_query(sql_query, grid):
@@ -277,5 +277,5 @@ def download_all_files(grid):
         return "Internal Server Error", 500
 
 if __name__ == "__main__":
-    select_tables_within_county()  # Create the function when the app starts
-    app.run(debug=True, host="0.0.0.0", port=int(os.env
+    create_select_function()  # Create the function when the app starts
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
