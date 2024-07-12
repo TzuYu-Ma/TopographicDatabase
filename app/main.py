@@ -149,7 +149,7 @@ def download_zip(grid):
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         with zipfile.ZipFile(tmp_file, 'w') as zipf:
             for filename in geojson_files:
-                zipf.write(filename)
+                zipf.write(filename, os.path.basename(filename))
         
         tmp_file.seek(0)
         return send_file(tmp_file.name, mimetype='application/zip', attachment_filename=f"{grid}_geojson_files.zip", as_attachment=True)
