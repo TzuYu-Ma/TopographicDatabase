@@ -42,21 +42,16 @@ def create_select_function():
                         %I t
                     JOIN (
                         SELECT ST_Transform(shape, 4326) AS shape_4326 
-                        FROM grd_100k
-                        WHERE grd_100k.grid = %L
-                        UNION ALL
-                        SELECT ST_Transform(shape, 4326) AS shape_4326 
-                        FROM grd
-                        WHERE grd.grid = %L
+                        FROM grd 
+                        WHERE grid = %L
                     ) county 
                     ON ST_Contains(county.shape_4326, ST_Transform(t.shape, 4326))
-                ', table_rec.tablename, table_rec.tablename, grid_value, grid_value);
+                ', table_rec.tablename, table_rec.tablename, grid_value);
                 
                 RETURN QUERY EXECUTE sql_query;
             END LOOP;
         END;
         $$ LANGUAGE plpgsql;
-
         """
         cur.execute(create_function_query)
         conn.commit()
@@ -65,52 +60,7 @@ def create_select_function():
 # create the index route
 @app.route('/')
 def index():
-    return render_template_string("""
-    <!DOCTYPE html>
-    <html lang="zh-TW">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>全臺地型圖資料庫下載</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                background-color: #f4f4f9;
-                margin: 0;
-                padding: 20px;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                height: 100vh;
-                text-align: center;
-            }
-            h1 {
-                color: #333;
-            }
-            p {
-                font-size: 1.2em;
-                color: #666;
-                max-width: 600px;
-            }
-            .container {
-                background: white;
-                padding: 20px;
-                border-radius: 10px;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>全臺地型圖資料庫下載</h1>
-            <p>此網頁提供之下載格式為 GeoJson，請<a href="https://github.com/TzuYu-Ma/cloudrun/tree/main">參照圖幅圖號或縣市代碼</a>，將所需圖號複製到網址欄後並按 Enter。</p>
-            <p>例: 若需要 93203NW 地形圖資料，請在網址欄最右邊加上 "/93203NW"</p>
-            <p>例: 若需要 屏東縣 地形圖資料，請在網址欄最右邊加上 "/10013"</p>
-        </div>
-    </body>
-    </html>
-    """)
+    return "The API is working!"
 
 # create a general DB to GeoJSON function based on a SQL query
 def database_to_geojson_by_query(sql_query, grid):
@@ -197,53 +147,12 @@ def get_json(grid):
         # Return an HTML page with clickable links
         return render_template_string(f"""
         <html>
-            <head>
-                <style>
-                    body {{
-                        font-family: Arial, sans-serif;
-                        background-color: #f4f4f9;
-                        margin: 0;
-                        padding: 20px;
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        justify-content: center;
-                        height: 100vh;
-                        text-align: center;
-                    }}
-                    h1 {{
-                        color: #333;
-                    }}
-                    ul {{
-                        list-style: none;
-                        padding: 0;
-                    }}
-                    li {{
-                        margin: 10px 0;
-                    }}
-                    a {{
-                        text-decoration: none;
-                        color: #1a73e8;
-                    }}
-                    a:hover {{
-                        text-decoration: underline;
-                    }}
-                    .container {{
-                        background: white;
-                        padding: 20px;
-                        border-radius: 10px;
-                        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-                    }}
-                </style>
-            </head>
             <body>
-                <div class="container">
-                    <h1>Download GeoJSON Files</h1>
-                    <ul>
-                        {html_links}
-                        {zip_link}
-                    </ul>
-                </div>
+                <h1>Download GeoJSON Files</h1>
+                <ul>
+                    {html_links}
+                    {zip_link}
+                </ul>
             </body>
         </html>
         """)
