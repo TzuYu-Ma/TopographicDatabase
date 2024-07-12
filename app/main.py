@@ -1,5 +1,5 @@
 import psycopg2
-from flask import Flask, jsonify, send_file
+from flask import Flask, jsonify, send_file, url_for
 import os
 import json
 
@@ -101,12 +101,17 @@ def database_to_geojson_by_query(sql_query, grid):
 
     return geojson_files
 
+# Route to generate and list GeoJSON files with download links
 @app.route('/<grid>', methods=['GET'])
 def get_json(grid):
     sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
     geojson_files = database_to_geojson_by_query(sql_query, grid)
-    return jsonify({"files": geojson_files})
+    
+    # Generate download URLs for the files
+    file_urls = [url_for('download_file', filename=filename, _external=True) for filename in geojson_files]
+    return jsonify({"files": file_urls})
 
+# Route to download a specific GeoJSON file
 @app.route('/download/<filename>', methods=['GET'])
 def download_file(filename):
     return send_file(filename, as_attachment=True)
