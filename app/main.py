@@ -8,57 +8,54 @@ import logging
 # create the Flask app
 app = Flask(__name__)
 
-# Setup logging
+# Set up logging
 logging.basicConfig(level=logging.DEBUG)
 
 # Function to create the stored function in the database
 def create_select_function():
-    try:
-        conn = psycopg2.connect(
-            host=os.environ.get("DB_HOST"),
-            database=os.environ.get("DB_NAME"),
-            user=os.environ.get("DB_USER"),
-            password=os.environ.get("DB_PASS"),
-            port=os.environ.get("DB_PORT"),
-        )
-        with conn.cursor() as cur:
-            create_function_query = """
-            CREATE OR REPLACE FUNCTION select_tables_within_county(grid_value text)
-            RETURNS TABLE(table_name text, record jsonb) AS $$
-            DECLARE
-                table_rec RECORD;
-                sql_query text;
-            BEGIN
-                FOR table_rec IN 
-                    SELECT tablename 
-                    FROM pg_tables 
-                    WHERE schemaname = 'public'
-                    AND tablename != 'spatial_ref_sys'
-                LOOP
-                    sql_query := format('
-                        SELECT 
-                            %L AS table_name,
-                            jsonb_agg(t.*) AS record
-                        FROM 
-                            %I t
-                        JOIN (
-                            SELECT ST_Transform(shape, 4326) AS shape_4326 
-                            FROM grd 
-                            WHERE grid = %L
-                        ) county 
-                        ON ST_Contains(county.shape_4326, ST_Transform(t.shape, 4326))
-                    ', table_rec.tablename, table_rec.tablename, grid_value);
-                    
-                    RETURN QUERY EXECUTE sql_query;
-                END LOOP;
-            END;
-            $$ LANGUAGE plpgsql;
-            """
-            cur.execute(create_function_query)
-            conn.commit()
-        conn.close()
-    except Exception as e:
-        logging.error(f"Error creating select function: {e}")
+    conn = psycopg2.connect(
+        host=os.environ.get("DB_HOST"),
+        database=os.environ.get("DB_NAME"),
+        user=os.environ.get("DB_USER"),
+        password=os.environ.get("DB_PASS"),
+        port=os.environ.get("DB_PORT"),
+    )
+    with conn.cursor() as cur:
+        create_function_query = """
+        CREATE OR REPLACE FUNCTION select_tables_within_county(grid_value text)
+        RETURNS TABLE(table_name text, record jsonb) AS $$
+        DECLARE
+            table_rec RECORD;
+            sql_query text;
+        BEGIN
+            FOR table_rec IN 
+                SELECT tablename 
+                FROM pg_tables 
+                WHERE schemaname = 'public'
+                AND tablename != 'spatial_ref_sys'
+            LOOP
+                sql_query := format('
+                    SELECT 
+                        %L AS table_name,
+                        jsonb_agg(t.*) AS record
+                    FROM 
+                        %I t
+                    JOIN (
+                        SELECT ST_Transform(shape, 4326) AS shape_4326 
+                        FROM grd 
+                        WHERE grid = %L
+                    ) county 
+                    ON ST_Contains(county.shape_4326, ST_Transform(t.shape, 4326))
+                ', table_rec.tablename, table_rec.tablename, grid_value);
+                
+                RETURN QUERY EXECUTE sql_query;
+            END LOOP;
+        END;
+        $$ LANGUAGE plpgsql;
+        """
+        cur.execute(create_function_query)
+        conn.commit()
+    conn.close()
 
 # create the index route
 @app.route('/')
@@ -68,6 +65,7 @@ def index():
 # create a general DB to GeoJSON function based on a SQL query
 def database_to_geojson_by_query(sql_query, grid):
     try:
+        logging.debug(f"Executing SQL query: {sql_query}")
         conn = psycopg2.connect(
             host=os.environ.get("DB_HOST"),
             database=os.environ.get("DB_NAME"),
@@ -80,11 +78,19 @@ def database_to_geojson_by_query(sql_query, grid):
             rows = cur.fetchall()
         conn.close()
 
+        if not rows:
+            logging.error(f"No rows returned for query: {sql_query}")
+            return []
+
         geojson_files = []
 
         for row in rows:
             table_name = row[0]
             records = row[1]
+            if not records:
+                logging.warning(f"No records found for table: {table_name}")
+                continue
+
             features = []
 
             for record in records:
@@ -109,10 +115,10 @@ def database_to_geojson_by_query(sql_query, grid):
             geojson_files.append(filename)
 
         return geojson_files
-    
+
     except Exception as e:
         logging.error(f"Error in database_to_geojson_by_query: {e}")
-        raise
+        return []
 
 # Route to generate and list GeoJSON files with download links
 @app.route('/<grid>', methods=['GET'])
@@ -121,6 +127,10 @@ def get_json(grid):
         sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
         geojson_files = database_to_geojson_by_query(sql_query, grid)
         
+        if not geojson_files:
+            logging.error(f"No GeoJSON files generated for grid: {grid}")
+            return "No GeoJSON files generated", 500
+
         # Generate download URLs for the files
         file_links = [{
             "name": os.path.splitext(filename)[0],
@@ -146,7 +156,6 @@ def get_json(grid):
             </body>
         </html>
         """)
-    
     except Exception as e:
         logging.error(f"Error in get_json: {e}")
         return "Internal Server Error", 500
@@ -154,11 +163,7 @@ def get_json(grid):
 # Route to download a specific GeoJSON file
 @app.route('/download/<filename>', methods=['GET'])
 def download_file(filename):
-    try:
-        return send_file(filename, as_attachment=True)
-    except Exception as e:
-        logging.error(f"Error in download_file: {e}")
-        return "Internal Server Error", 500
+    return send_file(filename, as_attachment=True)
 
 # Route to download all GeoJSON files as a ZIP archive
 @app.route('/download_all/<grid>', methods=['GET'])
@@ -167,13 +172,16 @@ def download_all_files(grid):
         sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
         geojson_files = database_to_geojson_by_query(sql_query, grid)
         
+        if not geojson_files:
+            logging.error(f"No GeoJSON files to zip for grid: {grid}")
+            return "No GeoJSON files to zip", 500
+
         zip_filename = f"{grid}_geojson_files.zip"
         with zipfile.ZipFile(zip_filename, 'w') as zipf:
             for geojson_file in geojson_files:
                 zipf.write(geojson_file)
         
         return send_file(zip_filename, as_attachment=True)
-    
     except Exception as e:
         logging.error(f"Error in download_all_files: {e}")
         return "Internal Server Error", 500
