@@ -11,7 +11,7 @@ app = Flask(__name__)
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 
-# Function to create the stored function in the database
+# Function to create the stored function in the database - grid
 def create_select_function():
     conn = psycopg2.connect(
         host=os.environ.get("DB_HOST"),
@@ -56,6 +56,52 @@ def create_select_function():
         cur.execute(create_function_query)
         conn.commit()
     conn.close()
+    
+# Function to create the stored function in the database - county
+def create_select_function():
+    conn = psycopg2.connect(
+        host=os.environ.get("DB_HOST"),
+        database=os.environ.get("DB_NAME"),
+        user=os.environ.get("DB_USER"),
+        password=os.environ.get("DB_PASS"),
+        port=os.environ.get("DB_PORT"),
+    )
+    with conn.cursor() as cur:
+        create_function_query = """
+        CREATE OR REPLACE FUNCTION select_tables_within_county(county_value text)
+        RETURNS TABLE(table_name text, record jsonb) AS $$
+        DECLARE
+            table_rec RECORD;
+            sql_query text;
+        BEGIN
+            FOR table_rec IN 
+                SELECT tablename 
+                FROM pg_tables 
+                WHERE schemaname = 'public'
+                AND tablename != 'spatial_ref_sys'
+            LOOP
+                sql_query := format('
+                    SELECT 
+                        %L AS table_name,
+                        jsonb_agg(t.*) AS record
+                    FROM 
+                        %I t
+                    JOIN (
+                        SELECT ST_Transform(shape, 4326) AS shape_4326 
+                        FROM county_boundary 
+                        WHERE countycode = %L
+                    ) county 
+                    ON ST_Contains(county.shape_4326, ST_Transform(t.shape, 4326))
+                ', table_rec.tablename, table_rec.tablename, county_value);
+                
+                RETURN QUERY EXECUTE sql_query;
+            END LOOP;
+        END;
+        $$ LANGUAGE plpgsql;
+        """
+        cur.execute(create_function_query)
+        conn.commit()
+    conn.close()
 
 # create the index route
 @app.route('/')
@@ -66,7 +112,7 @@ def index():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>二萬五千分之一圖幅圖號</title>
+        <title>地形圖二萬五千分之一圖資下載</title>
         <style>
             body {
                 font-family: Arial, sans-serif;
@@ -164,7 +210,116 @@ def database_to_geojson_by_query(sql_query, grid):
         logging.error(f"Error in database_to_geojson_by_query: {e}")
         return []
 
-# Route to generate and list GeoJSON files with download links
+# Route to generate and list GeoJSON files with download links - county
+@app.route('/<countycode>', methods=['GET'])
+def get_json(countycode):
+    try:
+        sql_query = f"SELECT * FROM select_tables_within_county('{countycode}');"
+        geojson_files = database_to_geojson_by_query(sql_query, countycode)
+        
+        if not geojson_files:
+            logging.error(f"No GeoJSON files generated for countycode: {countycode}")
+            return "No GeoJSON files generated", 500
+
+        # Generate download URLs for the files
+        file_links = [{
+            "name": os.path.splitext(filename)[0],
+            "url": url_for('download_file', filename=filename, _external=True, _scheme='https')
+        } for filename in geojson_files]
+
+        # Generate HTML links for easy clicking
+        html_links = ''.join([f'<li><a href="{file["url"]}">{file["name"]}</a></li>' for file in file_links])
+
+        # Add link for downloading all files as a ZIP archive
+        zip_url = url_for('download_all_files', countycode=countycode, _external=True, _scheme='https')
+        zip_link = f'<li><a href="{zip_url}">Download All as ZIP</a></li>'
+
+        # Return an HTML page with clickable links
+        return render_template_string(f"""
+        <html>
+            <head>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        background-color: #f4f4f9;
+                        margin: 0;
+                        padding: 20px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        height: 100vh;
+                        text-align: center;
+                    }}
+                    h1 {{
+                        color: #333;
+                    }}
+                    ul {{
+                        list-style: none;
+                        padding: 0;
+                    }}
+                    li {{
+                        margin: 10px 0;
+                    }}
+                    a {{
+                        text-decoration: none;
+                        color: #1a73e8;
+                    }}
+                    a:hover {{
+                        text-decoration: underline;
+                    }}
+                    .container {{
+                        background: white;
+                        padding: 20px;
+                        border-radius: 10px;
+                        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>Download GeoJSON Files</h1>
+                    <ul>
+                        {html_links}
+                        {zip_link}
+                    </ul>
+                </div>
+            </body>
+        </html>
+        """)
+    except Exception as e:
+        logging.error(f"Error in get_json: {e}")
+        return "Internal Server Error", 500
+
+# Route to download a specific GeoJSON file
+@app.route('/download/<filename>', methods=['GET'])
+def download_file(filename):
+    return send_file(filename, as_attachment=True)
+
+# Route to download all GeoJSON files as a ZIP archive
+@app.route('/download_all/<grid>', methods=['GET'])
+def download_all_files(grid):
+    try:
+        sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
+        geojson_files = database_to_geojson_by_query(sql_query, grid)
+        
+        if not geojson_files:
+            logging.error(f"No GeoJSON files to zip for grid: {grid}")
+            return "No GeoJSON files to zip", 500
+
+        zip_filename = f"{grid}_geojson_files.zip"
+        with zipfile.ZipFile(zip_filename, 'w') as zipf:
+            for geojson_file in geojson_files:
+                zipf.write(geojson_file)
+        
+        return send_file(zip_filename, as_attachment=True)
+    except Exception as e:
+        logging.error(f"Error in download_all_files: {e}")
+        return "Internal Server Error", 500
+
+
+
+# Route to generate and list GeoJSON files with download links - grid
 @app.route('/<grid>', methods=['GET'])
 def get_json(grid):
     try:
