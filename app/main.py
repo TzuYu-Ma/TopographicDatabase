@@ -43,12 +43,27 @@ def create_select_function():
                             %I t
                         JOIN (
                             SELECT ST_Transform(shape, 4326) AS shape_4326 
-                            FROM grd 
-                            WHERE grid = %L
+                            FROM grd_100k
+                            WHERE grd_100k.grid = %L
+                                        
+                            UNION ALL
+                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            FROM grd_50k
+                            WHERE grd_50k.grid = %L
+                            
+                            UNION ALL
+                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            FROM grd
+                            WHERE grd.grid = %L		
+                                        
+                            UNION ALL
+                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            FROM county_boundary
+                            WHERE county_boundary.countycode = %L			
                         ) county 
-                        ON ST_Contains(county.shape_4326, ST_Transform(t.shape, 4326))
-                    ', table_rec.tablename, table_rec.tablename, grid_value);
-                    
+                        ON ST_Intersects(ST_Transform(t.shape, 4326), county.shape_4326)
+                    ', table_rec.tablename, table_rec.tablename, grid_value, grid_value, grid_value, grid_value);
+
                     RETURN QUERY EXECUTE sql_query;
                 END LOOP;
             END;
@@ -102,8 +117,9 @@ def index():
     <body>
         <div class="container">
             <h1>二萬五千分之一圖幅圖號</h1>
-            <p>此網頁提供 GeoJson 格式供下載，請參照圖幅圖號，將所需圖號複製到網址欄後並按 Enter。</p>
+            <p>此網頁提供 GeoJson 格式供下載，請<a href="https://github.com/TzuYu-Ma/cloudrun/tree/main">參照圖幅圖號或縣市代碼</a>，將所需圖號複製到網址欄後並按 Enter。</p>
             <p>例: 若需要 93203NW 圖號圖資，請在網址欄最右邊加上 "/93203NW"</p>
+            <p>例: 若需要 屏東縣 地形圖資料，請在網址欄最右邊加上 "/10013"</p>
         </div>
     </body>
     </html>
