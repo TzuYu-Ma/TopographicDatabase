@@ -42,8 +42,8 @@ def create_select_function():
                         %I t
                     JOIN (
                         SELECT ST_Transform(shape, 4326) AS shape_4326 
-                        FROM county_boundary
-                        WHERE county_boundary.countycode = %L
+                        FROM grd_100k
+                        WHERE grd_100k.grid = %L
                         UNION ALL
                         SELECT ST_Transform(shape, 4326) AS shape_4326 
                         FROM grd
