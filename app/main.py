@@ -91,8 +91,8 @@ def create_select_function():
                         %I t
                     JOIN (
                         SELECT ST_Transform(shape, 4326) AS shape_4326 
-                        FROM county_boundary 
-                        WHERE countycode = %L
+                        FROM county_boundary, grd 
+                        WHERE county_boundary.countycode or grd.grid = %L
                     ) county 
                     ON ST_Contains(county.shape_4326, ST_Transform(t.shape, 4326))
                 ', table_rec.tablename, table_rec.tablename, grid_value);
@@ -273,4 +273,4 @@ def download_all_files(grid):
 
 if __name__ == "__main__":
     create_select_function()  # Create the function when the app starts
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    app.run(debug=True, host="0.0.0.0", port=int(os.env
