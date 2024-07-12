@@ -37,7 +37,12 @@ def create_select_function():
                 sql_query := format('
                     SELECT 
                         %L AS table_name,
-                        jsonb_agg(t.*) AS record
+                        jsonb_agg(
+                            jsonb_build_object(
+                                ''clipped_shape'', ST_AsGeoJSON(ST_Intersection(ST_Transform(t.shape, 4326), county.shape_4326))::jsonb,
+                                ''properties'', to_jsonb(t) - ''shape''
+                            )
+                        ) AS record
                     FROM 
                         %I t
                     JOIN (
@@ -49,14 +54,13 @@ def create_select_function():
                         FROM grd
                         WHERE grd.grid = %L
                     ) county 
-                    ON ST_Within(ST_Transform(t.shape, 4326), county.shape_4326)
+                    ON ST_Intersects(ST_Transform(t.shape, 4326), county.shape_4326)
                 ', table_rec.tablename, table_rec.tablename, grid_value, grid_value);
         
                 RETURN QUERY EXECUTE sql_query;
             END LOOP;
         END;
         $$ LANGUAGE plpgsql;
-
         """
         cur.execute(create_function_query)
         conn.commit()
