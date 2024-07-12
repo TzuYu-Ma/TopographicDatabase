@@ -1,6 +1,7 @@
 import psycopg2
 from flask import Flask, jsonify
 import os
+import binascii
 
 # create the Flask app
 app = Flask(__name__)
@@ -31,7 +32,12 @@ def create_select_function():
                 sql_query := format('
                     SELECT 
                         %L AS table_name,
-                        jsonb_agg(t.*) AS record
+                        jsonb_agg(
+                            jsonb_build_object(
+                                \'properties\', to_jsonb(t) - \'shape\',
+                                \'geometry_wkb\', encode(ST_AsBinary(t.shape), \'hex\')
+                            )
+                        ) AS record
                     FROM 
                         %I t
                     JOIN (
@@ -77,8 +83,8 @@ def database_to_geojson_by_query(sql_query):
         for record in records:
             feature = {
                 "type": "Feature",
-                "properties": {k: v for k, v in record.items() if k != "shape"},
-                "geometry": record["shape"]
+                "properties": record["properties"],
+                "geometry_wkb": record["geometry_wkb"]
             }
             features.append(feature)
     
