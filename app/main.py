@@ -13,54 +13,101 @@ logging.basicConfig(level=logging.DEBUG)
 
 # Function to create the stored function in the database
 def create_select_function():
-    conn = psycopg2.connect(
-        host=os.environ.get("DB_HOST"),
-        database=os.environ.get("DB_NAME"),
-        user=os.environ.get("DB_USER"),
-        password=os.environ.get("DB_PASS"),
-        port=os.environ.get("DB_PORT"),
-    )
-    with conn.cursor() as cur:
-        create_function_query = """
-        CREATE OR REPLACE FUNCTION select_tables_within_county(grid_value text)
-        RETURNS TABLE(table_name text, record jsonb) AS $$
-        DECLARE
-            table_rec RECORD;
-            sql_query text;
-        BEGIN
-            FOR table_rec IN 
-                SELECT tablename 
-                FROM pg_tables 
-                WHERE schemaname = 'public'
-                AND tablename != 'spatial_ref_sys'
-            LOOP
-                sql_query := format('
-                    SELECT 
-                        %L AS table_name,
-                        jsonb_agg(t.*) AS record
-                    FROM 
-                        %I t
-                    JOIN (
-                        SELECT ST_Transform(shape, 4326) AS shape_4326 
-                        FROM grd 
-                        WHERE grid = %L
-                    ) county 
-                    ON ST_Contains(county.shape_4326, ST_Transform(t.shape, 4326))
-                ', table_rec.tablename, table_rec.tablename, grid_value);
-                
-                RETURN QUERY EXECUTE sql_query;
-            END LOOP;
-        END;
-        $$ LANGUAGE plpgsql;
-        """
-        cur.execute(create_function_query)
-        conn.commit()
-    conn.close()
+    try:
+        conn = psycopg2.connect(
+            host=os.environ.get("DB_HOST"),
+            database=os.environ.get("DB_NAME"),
+            user=os.environ.get("DB_USER"),
+            password=os.environ.get("DB_PASS"),
+            port=os.environ.get("DB_PORT"),
+        )
+        with conn.cursor() as cur:
+            create_function_query = """
+            CREATE OR REPLACE FUNCTION select_tables_within_county(grid_value text)
+            RETURNS TABLE(table_name text, record jsonb) AS $$
+            DECLARE
+                table_rec RECORD;
+                sql_query text;
+            BEGIN
+                FOR table_rec IN 
+                    SELECT tablename 
+                    FROM pg_tables 
+                    WHERE schemaname = 'public'
+                    AND tablename != 'spatial_ref_sys'
+                LOOP
+                    sql_query := format('
+                        SELECT 
+                            %L AS table_name,
+                            jsonb_agg(t.*) AS record
+                        FROM 
+                            %I t
+                        JOIN (
+                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            FROM grd 
+                            WHERE grid = %L
+                        ) county 
+                        ON ST_Contains(county.shape_4326, ST_Transform(t.shape, 4326))
+                    ', table_rec.tablename, table_rec.tablename, grid_value);
+                    
+                    RETURN QUERY EXECUTE sql_query;
+                END LOOP;
+            END;
+            $$ LANGUAGE plpgsql;
+            """
+            cur.execute(create_function_query)
+            conn.commit()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Error creating function: {e}")
 
 # create the index route
 @app.route('/')
 def index():
-    return "The API is working!"
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html lang="zh-TW">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>二萬五千分之一圖幅圖號</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f4f4f9;
+                margin: 0;
+                padding: 20px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+                text-align: center;
+            }
+            h1 {
+                color: #333;
+            }
+            p {
+                font-size: 1.2em;
+                color: #666;
+                max-width: 600px;
+            }
+            .container {
+                background: white;
+                padding: 20px;
+                border-radius: 10px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>二萬五千分之一圖幅圖號</h1>
+            <p>此網頁提供 GeoJson 格式供下載，請參照圖幅圖號，將所需圖號複製到網址欄後並按 Enter。</p>
+            <p>例: 若需要 93203NW 圖號圖資，請在網址欄最右邊加上 "/93203NW"</p>
+        </div>
+    </body>
+    </html>
+    """)
 
 # create a general DB to GeoJSON function based on a SQL query
 def database_to_geojson_by_query(sql_query, grid):
@@ -94,6 +141,9 @@ def database_to_geojson_by_query(sql_query, grid):
             features = []
 
             for record in records:
+                if 'shape' not in record:
+                    logging.error(f"'shape' key not found in record: {record}")
+                    continue
                 feature = {
                     "type": "Feature",
                     "geometry": record["shape"],
@@ -147,12 +197,53 @@ def get_json(grid):
         # Return an HTML page with clickable links
         return render_template_string(f"""
         <html>
+            <head>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        background-color: #f4f4f9;
+                        margin: 0;
+                        padding: 20px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        height: 100vh;
+                        text-align: center;
+                    }}
+                    h1 {{
+                        color: #333;
+                    }}
+                    ul {{
+                        list-style: none;
+                        padding: 0;
+                    }}
+                    li {{
+                        margin: 10px 0;
+                    }}
+                    a {{
+                        text-decoration: none;
+                        color: #1a73e8;
+                    }}
+                    a:hover {{
+                        text-decoration: underline;
+                    }}
+                    .container {{
+                        background: white;
+                        padding: 20px;
+                        border-radius: 10px;
+                        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                    }}
+                </style>
+            </head>
             <body>
-                <h1>Download GeoJSON Files</h1>
-                <ul>
-                    {html_links}
-                    {zip_link}
-                </ul>
+                <div class="container">
+                    <h1>Download GeoJSON Files</h1>
+                    <ul>
+                        {html_links}
+                        {zip_link}
+                    </ul>
+                </div>
             </body>
         </html>
         """)
@@ -163,7 +254,11 @@ def get_json(grid):
 # Route to download a specific GeoJSON file
 @app.route('/download/<filename>', methods=['GET'])
 def download_file(filename):
-    return send_file(filename, as_attachment=True)
+    try:
+        return send_file(filename, as_attachment=True)
+    except Exception as e:
+        logging.error(f"Error in download_file: {e}")
+        return "File not found", 404
 
 # Route to download all GeoJSON files as a ZIP archive
 @app.route('/download_all/<grid>', methods=['GET'])
