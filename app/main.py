@@ -108,8 +108,15 @@ def get_json(grid):
     geojson_files = database_to_geojson_by_query(sql_query, grid)
     
     # Generate download URLs for the files
-    file_urls = [url_for('download_file', filename=filename, _external=True) for filename in geojson_files]
-    return jsonify({"files": file_urls})
+    file_links = [{
+        "name": os.path.splitext(filename)[0],
+        "url": url_for('download_file', filename=filename, _external=True, _scheme='https')
+    } for filename in geojson_files]
+
+    # Generate HTML links for easy clicking
+    html_links = [f'<a href="{file["url"]}">{file["name"]}</a>' for file in file_links]
+
+    return jsonify({"files": html_links})
 
 # Route to download a specific GeoJSON file
 @app.route('/download/<filename>', methods=['GET'])
