@@ -84,7 +84,7 @@ def index():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>二萬五千分之一圖幅圖號</title>
+        <title>全臺地形圖資料庫下載</title>
         <style>
             body {
                 font-family: Arial, sans-serif;
@@ -116,7 +116,7 @@ def index():
     </head>
     <body>
         <div class="container">
-            <h1>二萬五千分之一圖幅圖號</h1>
+            <h1>全臺地形圖資料庫下載</h1>
             <p>此網頁提供 GeoJson 格式供下載，請<a href="https://github.com/TzuYu-Ma/cloudrun/tree/main">參照圖幅圖號或縣市代碼</a>，將所需圖號複製到網址欄後並按 Enter。</p>
             <p>例: 若需要 93203NW 圖號圖資，請在網址欄最右邊加上 "/93203NW"</p>
             <p>例: 若需要 屏東縣 地形圖資料，請在網址欄最右邊加上 "/10013"</p>
