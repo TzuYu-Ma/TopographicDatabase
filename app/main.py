@@ -89,7 +89,7 @@ def database_to_geojson_by_query(sql_query):
         }
         geojson_collections[table_name] = geojson
     
-    return jsonify(geojson_collections)
+    return jsonify(geojson)
 
 # call our general function with the provided grid
 @app.route('/<grid>', methods=['GET'])
