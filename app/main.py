@@ -1,9 +1,7 @@
 import psycopg2
-import shapefile
-from flask import Flask, send_file, jsonify
+from flask import Flask, send_file
 import os
-from io import BytesIO
-import zipfile
+import json
 
 # create the Flask app
 app = Flask(__name__)
@@ -59,54 +57,8 @@ def create_select_function():
 def index():
     return "The API is working!"
 
-# Function to convert database records to shapefiles
-def records_to_shapefile(table_name, records):
-    if not records:
-        return None
-
-    geometry_type = records[0]['shape']['type']
-    if geometry_type == 'Point':
-        shp = shapefile.Writer(shapeType=shapefile.POINT)
-    elif geometry_type == 'LineString':
-        shp = shapefile.Writer(shapeType=shapefile.POLYLINE)
-    elif geometry_type == 'Polygon':
-        shp = shapefile.Writer(shapeType=shapefile.POLYGON)
-    else:
-        return None
-
-    # Assuming all records have the same fields
-    fields = records[0].keys()
-    for field in fields:
-        if field != 'shape':
-            shp.field(field, 'C')
-
-    for record in records:
-        attributes = [record[field] for field in fields if field != 'shape']
-        shp.record(*attributes)
-        geom = record['shape']['coordinates']
-        if geometry_type == 'Point':
-            shp.point(*geom)
-        elif geometry_type == 'LineString':
-            shp.line([geom])
-        elif geometry_type == 'Polygon':
-            shp.poly([geom])
-
-    shp_io = BytesIO()
-    shp.save(shp_io)
-    shp_io.seek(0)
-
-    zip_io = BytesIO()
-    with zipfile.ZipFile(zip_io, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for ext in ['shp', 'shx', 'dbf']:
-            zipf.writestr(f"{table_name}.{ext}", shp_io.read())
-    zip_io.seek(0)
-
-    return zip_io
-
-# call our general function with the provided grid
-@app.route('/<grid>', methods=['GET'])
-def get_shapefiles(grid):
-    sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
+# create a function to convert SQL query result to GeoJSON and save to a file
+def save_geojson_by_query(sql_query, grid_value):
     conn = psycopg2.connect(
         host=os.environ.get("DB_HOST"),
         database=os.environ.get("DB_NAME"),
@@ -119,22 +71,40 @@ def get_shapefiles(grid):
         rows = cur.fetchall()
     conn.close()
 
-    shapefiles = {}
     for row in rows:
         table_name = row[0]
         records = row[1]
-        shapefile_io = records_to_shapefile(table_name, records)
-        if shapefile_io:
-            shapefiles[table_name] = shapefile_io
+        features = []
+        for record in records:
+            feature = {
+                "type": "Feature",
+                "geometry": record["shape"],
+                "properties": {k: v for k, v in record.items() if k != "shape"}
+            }
+            features.append(feature)
+        
+        geojson = {
+            "type": "FeatureCollection",
+            "features": features
+        }
 
-    zip_io = BytesIO()
-    with zipfile.ZipFile(zip_io, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for table_name, shapefile_io in shapefiles.items():
-            for ext in ['shp', 'shx', 'dbf']:
-                zipf.writestr(f"{table_name}/{table_name}.{ext}", shapefile_io.read())
-    zip_io.seek(0)
+        filename = f"{grid_value}_{table_name}.geojson"
+        with open(filename, 'w') as f:
+            json.dump(geojson, f)
 
-    return send_file(zip_io, mimetype='application/zip', as_attachment=True, download_name='shapefiles.zip')
+        yield filename
+
+# endpoint to generate and download GeoJSON files
+@app.route('/download/<grid>', methods=['GET'])
+def download_geojson(grid):
+    sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
+    filenames = list(save_geojson_by_query(sql_query, grid))
+    return jsonify({"files": filenames})
+
+# endpoint to serve generated GeoJSON files
+@app.route('/files/<filename>', methods=['GET'])
+def serve_file(filename):
+    return send_file(filename)
 
 if __name__ == "__main__":
     create_select_function()  # Create the function when the app starts
