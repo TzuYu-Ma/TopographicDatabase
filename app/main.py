@@ -16,36 +16,34 @@ def create_select_function():
     )
     with conn.cursor() as cur:
         create_function_query = """
-        CREATE OR REPLACE FUNCTION select_tables_within_county(grid_param text)
-        RETURNS TABLE (
-            builda_id integer,
-            builda_geometry json,
-            county_id integer,
-            county_geometry json
-        ) AS $$
+        CREATE OR REPLACE FUNCTION select_tables_within_county(grid_value text)
+        RETURNS TABLE(table_name text, record jsonb) AS $$
+        DECLARE
+            table_rec RECORD;
+            sql_query text;
         BEGIN
-            RETURN QUERY
-            WITH 
-            county AS (
-                SELECT *, ST_Transform(shape, 4326) AS shape_4326 
-                FROM grd 
-                WHERE grid = grid_param
-            ),
-            builda_transformed AS (
-                SELECT *, ST_Transform(shape, 4326) AS shape_4326
-                FROM builda
-            )
-            SELECT 
-                builda_transformed.id,
-                ST_AsGeoJSON(builda_transformed.shape_4326)::json AS builda_geometry,
-                county.id,
-                ST_AsGeoJSON(county.shape_4326)::json AS county_geometry
-            FROM 
-                builda_transformed
-            JOIN 
-                county 
-            ON 
-                ST_Contains(county.shape_4326, builda_transformed.shape_4326);
+            FOR table_rec IN 
+                SELECT tablename 
+                FROM pg_tables 
+                WHERE schemaname = 'public'
+                AND tablename != 'spatial_ref_sys'
+            LOOP
+                sql_query := format('
+                    SELECT 
+                        %L AS table_name,
+                        jsonb_agg(t.*) AS record
+                    FROM 
+                        %I t
+                    JOIN (
+                        SELECT ST_Transform(shape, 4326) AS shape_4326 
+                        FROM grd 
+                        WHERE grid = %L
+                    ) county 
+                    ON ST_Contains(county.shape_4326, ST_Transform(t.shape, 4326))
+                ', table_rec.tablename, table_rec.tablename, grid_value);
+                
+                RETURN QUERY EXECUTE sql_query;
+            END LOOP;
         END;
         $$ LANGUAGE plpgsql;
         """
@@ -72,24 +70,26 @@ def database_to_geojson_by_query(sql_query):
         rows = cur.fetchall()
     conn.close()
 
-    features = []
+    geojson_collections = {}
     for row in rows:
-        feature = {
-            "type": "Feature",
-            "properties": {
-                "builda_id": row[0],
-                "county_id": row[2],
-            },
-            "geometry": row[1]
+        table_name = row[0]
+        records = row[1]
+        features = []
+        for record in records:
+            feature = {
+                "type": "Feature",
+                "geometry": record["shape"],
+                "properties": {k: v for k, v in record.items() if k != "shape"}
+            }
+            features.append(feature)
+        
+        geojson = {
+            "type": "FeatureCollection",
+            "features": features
         }
-        features.append(feature)
+        geojson_collections[table_name] = geojson
     
-    geojson = {
-        "type": "FeatureCollection",
-        "features": features
-    }
-    
-    return jsonify(geojson)
+    return jsonify(geojson_collections)
 
 # call our general function with the provided grid
 @app.route('/<grid>', methods=['GET'])
