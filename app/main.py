@@ -1,7 +1,6 @@
 import psycopg2
-from flask import Flask, jsonify, send_file, url_for
+from flask import Flask, jsonify
 import os
-import json
 
 # create the Flask app
 app = Flask(__name__)
@@ -58,7 +57,7 @@ def index():
     return "The API is working!"
 
 # create a general DB to GeoJSON function based on a SQL query
-def database_to_geojson_by_query(sql_query, grid):
+def database_to_geojson_by_query(sql_query):
     conn = psycopg2.connect(
         host=os.environ.get("DB_HOST"),
         database=os.environ.get("DB_NAME"),
@@ -71,20 +70,17 @@ def database_to_geojson_by_query(sql_query, grid):
         rows = cur.fetchall()
     conn.close()
 
-    geojson_files = []
-
+    geojson_collections = {}
     for row in rows:
         table_name = row[0]
         records = row[1]
         features = []
-
         for record in records:
             feature = {
                 "type": "Feature",
                 "geometry": record["shape"],
                 "properties": {k: v for k, v in record.items() if k != "shape"}
             }
-            feature["properties"]["table_name"] = table_name
             features.append(feature)
         
         geojson = {
@@ -92,36 +88,15 @@ def database_to_geojson_by_query(sql_query, grid):
             "features": features
         }
 
-        # Save each table's data into a separate GeoJSON file
-        filename = f"{grid}_{table_name}.geojson"
-        with open(filename, 'w') as f:
-            json.dump(geojson, f)
+    
+    return jsonify(geojson)
 
-        geojson_files.append(filename)
-
-    return geojson_files
-
-# Route to generate and list GeoJSON files with download links
+# call our general function with the provided grid
 @app.route('/<grid>', methods=['GET'])
 def get_json(grid):
     sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
-    geojson_files = database_to_geojson_by_query(sql_query, grid)
-    
-    # Generate download URLs for the files
-    file_links = [{
-        "name": os.path.splitext(filename)[0],
-        "url": url_for('download_file', filename=filename, _external=True, _scheme='https')
-    } for filename in geojson_files]
-
-    # Generate HTML links for easy clicking
-    html_links = [f'<a href="{file["url"]}">{file["name"]}</a>' for file in file_links]
-
-    return jsonify({"files": html_links})
-
-# Route to download a specific GeoJSON file
-@app.route('/download/<filename>', methods=['GET'])
-def download_file(filename):
-    return send_file(filename, as_attachment=True)
+    grid_geojson = database_to_geojson_by_query(sql_query)
+    return grid_geojson
 
 if __name__ == "__main__":
     create_select_function()  # Create the function when the app starts
