@@ -81,11 +81,11 @@ def database_to_geojson_by_query(sql_query):
                 "geometry": record["shape"],
                 "properties": {k: v for k, v in record.items() if k != "shape"}
             }
+            feature["properties"]["table_name"] = table_name
             features.append(feature)
         
         geojson = {
             "type": "FeatureCollection",
-            "name": table_name,
             "features": features
         }
         
