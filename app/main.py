@@ -74,14 +74,15 @@ def database_to_geojson_by_query(sql_query):
     for row in rows:
         table_name = row[0]
         records = row[1]
-        for record in records:
-            feature = {
-                "type": "Feature",
-                "geometry": record["geometry"],
-                "properties": {key: value for key, value in record.items() if key != "geometry"}
-            }
-            feature["properties"]["table_name"] = table_name
-            features.append(feature)
+        if records:  # Ensure records is not None
+            for record in records:
+                feature = {
+                    "type": "Feature",
+                    "geometry": record["geometry"],
+                    "properties": {key: value for key, value in record.items() if key != "geometry"}
+                }
+                feature["properties"]["table_name"] = table_name
+                features.append(feature)
 
     geojson = {
         "type": "FeatureCollection",
