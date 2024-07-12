@@ -91,16 +91,21 @@ def create_select_function():
                         %I t
                     JOIN (
                         SELECT ST_Transform(shape, 4326) AS shape_4326 
-                        FROM county_boundary, grd 
-                        WHERE county_boundary.countycode or grd.grid = %L
+                        FROM county_boundary
+                        WHERE county_boundary.countycode = %L
+                        UNION ALL
+                        SELECT ST_Transform(shape, 4326) AS shape_4326 
+                        FROM grd
+                        WHERE grd.grid = %L
                     ) county 
                     ON ST_Contains(county.shape_4326, ST_Transform(t.shape, 4326))
-                ', table_rec.tablename, table_rec.tablename, grid_value);
+                ', table_rec.tablename, table_rec.tablename, grid_value, grid_value);
                 
                 RETURN QUERY EXECUTE sql_query;
             END LOOP;
         END;
         $$ LANGUAGE plpgsql;
+
         """
         cur.execute(create_function_query)
         conn.commit()
