@@ -70,37 +70,18 @@ def database_to_geojson_by_query(sql_query):
         rows = cur.fetchall()
     conn.close()
 
-    if not rows:
-        print("No rows returned from the query")
-    else:
-        print(f"Rows returned: {len(rows)}")
-
-    features = []
+    result = []
     for row in rows:
-        table_name = row[0]
-        records = row[1]
-        if records:  # Ensure records is not None
-            for record in records:
-                if "geometry" in record:
-                    feature = {
-                        "type": "Feature",
-                        "geometry": record["geometry"],
-                        "properties": {key: value for key, value in record.items() if key != "geometry"}
-                    }
-                    feature["properties"]["table_name"] = table_name
-                    features.append(feature)
-
-    geojson = {
-        "type": "FeatureCollection",
-        "features": features
-    }
-    return jsonify(geojson)
+        result.append({
+            "table_name": row[0],
+            "record": row[1]
+        })
+    return jsonify(result)
 
 # call our general function with the provided grid
 @app.route('/<grid>', methods=['GET'])
 def get_json(grid):
     sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
-    print(f"Executing SQL query: {sql_query}")
     grid_geojson = database_to_geojson_by_query(sql_query)
     return grid_geojson
 
