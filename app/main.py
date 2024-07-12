@@ -2,6 +2,8 @@ import psycopg2
 from flask import Flask, jsonify, send_file, url_for, render_template_string
 import os
 import json
+import zipfile
+import tempfile
 
 # create the Flask app
 app = Flask(__name__)
@@ -115,6 +117,10 @@ def get_json(grid):
 
     # Generate HTML links for easy clicking
     html_links = ''.join([f'<li><a href="{file["url"]}">{file["name"]}</a></li>' for file in file_links])
+    
+    # Add link to download all files as a ZIP
+    zip_url = url_for('download_zip', grid=grid, _external=True, _scheme='https')
+    html_links += f'<li><a href="{zip_url}">Download all as ZIP</a></li>'
 
     # Return an HTML page with clickable links
     return render_template_string(f"""
@@ -132,6 +138,21 @@ def get_json(grid):
 @app.route('/download/<filename>', methods=['GET'])
 def download_file(filename):
     return send_file(filename, as_attachment=True)
+
+# Route to download all GeoJSON files as a ZIP
+@app.route('/download_zip/<grid>', methods=['GET'])
+def download_zip(grid):
+    sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
+    geojson_files = database_to_geojson_by_query(sql_query, grid)
+    
+    # Create a temporary file to store the ZIP
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+        with zipfile.ZipFile(tmp_file, 'w') as zipf:
+            for filename in geojson_files:
+                zipf.write(filename)
+        
+        tmp_file.seek(0)
+        return send_file(tmp_file.name, mimetype='application/zip', attachment_filename=f"{grid}_geojson_files.zip", as_attachment=True)
 
 if __name__ == "__main__":
     create_select_function()  # Create the function when the app starts
