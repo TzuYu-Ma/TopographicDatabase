@@ -1,5 +1,5 @@
 import psycopg2
-from flask import Flask, jsonify, send_file, url_for
+from flask import Flask, jsonify, send_file, url_for, render_template_string
 import os
 import json
 
@@ -114,9 +114,19 @@ def get_json(grid):
     } for filename in geojson_files]
 
     # Generate HTML links for easy clicking
-    html_links = [f'<a href="{file["url"]}">{file["name"]}</a>' for file in file_links]
+    html_links = ''.join([f'<li><a href="{file["url"]}">{file["name"]}</a></li>' for file in file_links])
 
-    return jsonify({"files": html_links})
+    # Return an HTML page with clickable links
+    return render_template_string(f"""
+    <html>
+        <body>
+            <h1>Download GeoJSON Files</h1>
+            <ul>
+                {html_links}
+            </ul>
+        </body>
+    </html>
+    """)
 
 # Route to download a specific GeoJSON file
 @app.route('/download/<filename>', methods=['GET'])
