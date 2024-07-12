@@ -23,44 +23,44 @@ def create_select_function():
     with conn.cursor() as cur:
         create_function_query = """
         CREATE OR REPLACE FUNCTION select_tables_within_county(grid_value text)
-RETURNS TABLE(table_name text, record jsonb) AS $$
-DECLARE
-    table_rec RECORD;
-    sql_query text;
-BEGIN
-    FOR table_rec IN 
-        SELECT tablename 
-        FROM pg_tables 
-        WHERE schemaname = 'public'
-        AND tablename != 'spatial_ref_sys'
-    LOOP
-        sql_query := format('
-            SELECT 
-                %L AS table_name,
-                jsonb_agg(
-                    jsonb_build_object(
-                        ''clipped_shape'', ST_AsGeoJSON(ST_Intersection(ST_Transform(t.shape, 4326), county.shape_4326))::jsonb,
-                        ''properties'', to_jsonb(t) - ''shape''
-                    )
-                ) AS record
-            FROM 
-                %I t
-            JOIN (
-                SELECT ST_Transform(shape, 4326) AS shape_4326 
-                FROM grd_50k
-                WHERE grd_50k.grid = %L
-                UNION ALL
-                SELECT ST_Transform(shape, 4326) AS shape_4326 
-                FROM grd
-                WHERE grd.grid = %L
-            ) county 
-            ON ST_Intersects(ST_Transform(t.shape, 4326), county.shape_4326)
-        ', table_rec.tablename, table_rec.tablename, grid_value, grid_value);
-
-        RETURN QUERY EXECUTE sql_query;
-    END LOOP;
-END;
-$$ LANGUAGE plpgsql;
+        RETURNS TABLE(table_name text, record jsonb) AS $$
+        DECLARE
+            table_rec RECORD;
+            sql_query text;
+        BEGIN
+            FOR table_rec IN 
+                SELECT tablename 
+                FROM pg_tables 
+                WHERE schemaname = 'public'
+                AND tablename != 'spatial_ref_sys'
+            LOOP
+                sql_query := format('
+                    SELECT 
+                        %L AS table_name,
+                        jsonb_agg(
+                            jsonb_build_object(
+                                ''clipped_shape'', ST_AsGeoJSON(ST_Intersection(ST_Transform(t.shape, 4326), county.shape_4326))::jsonb,
+                                ''properties'', to_jsonb(t) - ''shape''
+                            )
+                        ) AS record
+                    FROM 
+                        %I t
+                    JOIN (
+                        SELECT ST_Transform(shape, 4326) AS shape_4326 
+                        FROM grd_50k
+                        WHERE grd_50k.grid = %L
+                        UNION ALL
+                        SELECT ST_Transform(shape, 4326) AS shape_4326 
+                        FROM grd
+                        WHERE grd.grid = %L
+                    ) county 
+                    ON ST_Intersects(ST_Transform(t.shape, 4326), county.shape_4326)
+                ', table_rec.tablename, table_rec.tablename, grid_value, grid_value);
+        
+                RETURN QUERY EXECUTE sql_query;
+            END LOOP;
+        END;
+        $$ LANGUAGE plpgsql;
 
         """
         cur.execute(create_function_query)
