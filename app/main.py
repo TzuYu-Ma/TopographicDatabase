@@ -70,6 +70,11 @@ def database_to_geojson_by_query(sql_query):
         rows = cur.fetchall()
     conn.close()
 
+    if not rows:
+        print("No rows returned from the query")
+    else:
+        print(f"Rows returned: {len(rows)}")
+
     features = []
     for row in rows:
         table_name = row[0]
@@ -95,6 +100,7 @@ def database_to_geojson_by_query(sql_query):
 @app.route('/<grid>', methods=['GET'])
 def get_json(grid):
     sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
+    print(f"Executing SQL query: {sql_query}")
     grid_geojson = database_to_geojson_by_query(sql_query)
     return grid_geojson
 
