@@ -277,5 +277,5 @@ def download_all_files(grid):
         return "Internal Server Error", 500
 
 if __name__ == "__main__":
-    create_select_function()  # Create the function when the app starts
+    select_tables_within_county()  # Create the function when the app starts
     app.run(debug=True, host="0.0.0.0", port=int(os.env
