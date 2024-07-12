@@ -27,7 +27,17 @@ def create_select_function():
         DECLARE
             table_rec RECORD;
             sql_query text;
+            column_name text;
         BEGIN
+            -- 根據 area_type 設置列名
+            IF area_type = 'grd' THEN
+                column_name := 'grid';
+            ELSIF area_type = 'county_boundary' THEN
+                column_name := 'countycode';
+            ELSE
+                RAISE EXCEPTION 'Invalid area_type: %', area_type;
+            END IF;
+
             FOR table_rec IN 
                 SELECT tablename 
                 FROM pg_tables 
@@ -46,7 +56,7 @@ def create_select_function():
                         WHERE %I = %L
                     ) area 
                     ON ST_Contains(area.shape_4326, ST_Transform(t.shape, 4326))
-                ', table_rec.tablename, table_rec.tablename, area_type, area_type, area_value);
+                ', table_rec.tablename, table_rec.tablename, area_type, column_name, area_value);
                 
                 RETURN QUERY EXECUTE sql_query;
             END LOOP;
@@ -177,102 +187,3 @@ def get_json(area):
             return "No GeoJSON files generated", 500
 
         # Generate download URLs for the files
-        file_links = [{
-            "name": os.path.splitext(filename)[0],
-            "url": url_for('download_file', filename=filename, _external=True, _scheme='https')
-        } for filename in geojson_files]
-
-        # Generate HTML links for easy clicking
-        html_links = ''.join([f'<li><a href="{file["url"]}">{file["name"]}</a></li>' for file in file_links])
-
-        # Add link for downloading all files as a ZIP archive
-        zip_url = url_for('download_all_files', area=area, _external=True, _scheme='https')
-        zip_link = f'<li><a href="{zip_url}">Download All as ZIP</a></li>'
-
-        # Return an HTML page with clickable links
-        return render_template_string(f"""
-        <html>
-            <head>
-                <style>
-                    body {{
-                        font-family: Arial, sans-serif;
-                        background-color: #f4f4f9;
-                        margin: 0;
-                        padding: 20px;
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        justify-content: center;
-                        height: 100vh;
-                        text-align: center;
-                    }}
-                    h1 {{
-                        color: #333;
-                    }}
-                    ul {{
-                        list-style: none;
-                        padding: 0;
-                    }}
-                    li {{
-                        margin: 10px 0;
-                    }}
-                    a {{
-                        text-decoration: none;
-                        color: #1a73e8;
-                    }}
-                    a:hover {{
-                        text-decoration: underline;
-                    }}
-                    .container {{
-                        background: white;
-                        padding: 20px;
-                        border-radius: 10px;
-                        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-                    }}
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h1>Download GeoJSON Files</h1>
-                    <ul>
-                        {html_links}
-                        {zip_link}
-                    </ul>
-                </div>
-            </body>
-        </html>
-        """)
-    except Exception as e:
-        logging.error(f"Error in get_json: {e}")
-        return "Internal Server Error", 500
-
-# Route to download a specific GeoJSON file
-@app.route('/download/<filename>', methods=['GET'])
-def download_file(filename):
-    return send_file(filename, as_attachment=True)
-
-# Route to download all GeoJSON files as a ZIP archive
-@app.route('/download_all/<area>', methods=['GET'])
-def download_all_files(area):
-    try:
-        area_type = 'grd' if area.isdigit() else 'county_boundary'
-        sql_query = f"SELECT * FROM select_tables_within_area('{area}', '{area_type}');"
-        geojson_files = database_to_geojson_by_query(sql_query, area)
-        
-        if not geojson_files:
-            logging.error(f"No GeoJSON files to zip for area: {area}")
-            return "No GeoJSON files to zip", 500
-
-        zip_filename = f"{area}_geojson_files.zip"
-        with zipfile.ZipFile(zip_filename, 'w') as zipf:
-            for geojson_file in geojson_files:
-                zipf.write(geojson_file)
-        
-        return send_file(zip_filename, as_attachment=True)
-    except Exception as e:
-        logging.error(f"Error in download_all_files: {e}")
-        return "Internal Server Error", 500
-
-if __name__ == "__main__":
-    create_select_function()  # Create the function when the app starts
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
