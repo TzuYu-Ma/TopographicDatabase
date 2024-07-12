@@ -80,6 +80,7 @@ def database_to_geojson_by_query(sql_query):
                 "geometry": record["geometry"],
                 "properties": {key: value for key, value in record.items() if key != "geometry"}
             }
+            feature["properties"]["table_name"] = table_name
             features.append(feature)
 
     geojson = {
