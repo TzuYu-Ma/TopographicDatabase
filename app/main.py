@@ -37,26 +37,17 @@ def create_select_function():
                 sql_query := format('
                     SELECT 
                         %L AS table_name,
-                        jsonb_agg(
-                            jsonb_build_object(
-                                ''clipped_shape'', ST_AsGeoJSON(ST_Intersection(ST_Transform(t.shape, 4326), county.shape_4326))::jsonb,
-                                ''properties'', to_jsonb(t) - ''shape''
-                            )
-                        ) AS record
+                        jsonb_agg(t.*) AS record
                     FROM 
                         %I t
                     JOIN (
                         SELECT ST_Transform(shape, 4326) AS shape_4326 
-                        FROM grd_50k
-                        WHERE grd_50k.grid = %L
-                        UNION ALL
-                        SELECT ST_Transform(shape, 4326) AS shape_4326 
-                        FROM grd
-                        WHERE grd.grid = %L
+                        FROM grd 
+                        WHERE grid = %L
                     ) county 
-                    ON ST_Intersects(ST_Transform(t.shape, 4326), county.shape_4326)
-                ', table_rec.tablename, table_rec.tablename, grid_value, grid_value);
-        
+                    ON ST_Contains(county.shape_4326, ST_Transform(t.shape, 4326))
+                ', table_rec.tablename, table_rec.tablename, grid_value);
+                
                 RETURN QUERY EXECUTE sql_query;
             END LOOP;
         END;
@@ -75,7 +66,7 @@ def index():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>全臺地型圖資料庫下載</title>
+        <title>二萬五千分之一圖幅圖號</title>
         <style>
             body {
                 font-family: Arial, sans-serif;
@@ -107,10 +98,9 @@ def index():
     </head>
     <body>
         <div class="container">
-            <h1>全臺地型圖資料庫下載</h1>
-            <p>此網頁提供之下載格式為 GeoJson，請<a href="https://github.com/TzuYu-Ma/cloudrun/tree/main">參照圖幅圖號或縣市代碼</a>，將所需圖號複製到網址欄後並按 Enter。</p>
-            <p>例: 若需要 93203NW 地形圖資料，請在網址欄最右邊加上 "/93203NW"</p>
-            <p>例: 若需要 屏東縣 地形圖資料，請在網址欄最右邊加上 "/10013"</p>
+            <h1>二萬五千分之一圖幅圖號</h1>
+            <p>此網頁提供 GeoJson 格式供下載，請參照圖幅圖號，將所需圖號複製到網址欄後並按 Enter。</p>
+            <p>例: 若需要 93203NW 圖號圖資，請在網址欄最右邊加上 "/93203NW"</p>
         </div>
     </body>
     </html>
