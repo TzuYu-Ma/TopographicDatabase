@@ -117,9 +117,10 @@ def index():
     <body>
         <div class="container">
             <h1>全臺地形圖資料庫下載</h1>
-            <p>此網頁提供 GeoJson 格式供下載，請<a href="https://github.com/TzuYu-Ma/cloudrun/tree/main">參照圖幅圖號或縣市代碼</a>，將所需圖號複製到網址欄後並按 Enter。</p>
+            <p>此網頁提供 GeoJSON 格式下載，請<a href="https://github.com/TzuYu-Ma/cloudrun/tree/main">參照圖幅圖號或縣市代碼</a>，將所需圖號、縣市代碼及向量名稱複製到網址欄後，按 Enter。</p>
             <p>例: 若需要 93203NW 圖號圖資，請在網址欄最右邊加上 "/93203NW"</p>
             <p>例: 若需要 屏東縣 地形圖資料，請在網址欄最右邊加上 "/10013"</p>
+            <p>例: 若需要93203NW 道路資料之 URL ，請在網址欄最右邊加上 "/93203NW/roadl"</p>
         </div>
     </body>
     </html>
@@ -226,6 +227,7 @@ def get_json(grid):
                         justify-content: center;
                         height: 100vh;
                         text-align: center;
+                        box-sizing: border-box;
                     }}
                     h1 {{
                         color: #333;
@@ -233,6 +235,7 @@ def get_json(grid):
                     ul {{
                         list-style: none;
                         padding: 0;
+                        margin: 0;
                     }}
                     li {{
                         margin: 10px 0;
@@ -249,6 +252,8 @@ def get_json(grid):
                         padding: 20px;
                         border-radius: 10px;
                         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                        max-width: 90%;
+                        box-sizing: border-box;
                     }}
                 </style>
             </head>
@@ -263,6 +268,7 @@ def get_json(grid):
             </body>
         </html>
         """)
+
     except Exception as e:
         logging.error(f"Error in get_json: {e}")
         return "Internal Server Error", 500
@@ -296,8 +302,8 @@ def download_all_files(grid):
     except Exception as e:
         logging.error(f"Error in download_all_files: {e}")
         return "Internal Server Error", 500
-        
-# Route to get url
+    
+# Route to get GeoJSON data for a specific table within a given grid
 @app.route('/<grid>/<table_name>', methods=['GET'])
 def get_geojson_data(table_name, grid):
     try:
