@@ -222,15 +222,15 @@ def get_json(grid):
                         margin: 0;
                         padding: 20px;
                         display: flex;
-                        flex-direction: column;
                         align-items: center;
                         justify-content: center;
                         height: 100vh;
                         text-align: center;
-                        box-sizing: border-box;
+                        overflow: hidden;
                     }}
                     h1 {{
                         color: #333;
+                        margin-top: 0;
                     }}
                     ul {{
                         list-style: none;
@@ -252,8 +252,11 @@ def get_json(grid):
                         padding: 20px;
                         border-radius: 10px;
                         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-                        max-width: 90%;
+                        max-width: 600px;
+                        width: 100%;
                         box-sizing: border-box;
+                        overflow-y: auto;
+                        max-height: 100%;
                     }}
                 </style>
             </head>
@@ -268,6 +271,7 @@ def get_json(grid):
             </body>
         </html>
         """)
+
 
     except Exception as e:
         logging.error(f"Error in get_json: {e}")
