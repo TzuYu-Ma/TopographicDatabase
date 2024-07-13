@@ -296,6 +296,32 @@ def download_all_files(grid):
     except Exception as e:
         logging.error(f"Error in download_all_files: {e}")
         return "Internal Server Error", 500
+        
+# Route to get url
+@app.route('/<grid>/<table_name>', methods=['GET'])
+def get_geojson_urls(table_name, grid):
+    try:
+        sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
+        geojson_files = database_to_geojson_by_query(sql_query, grid)
+        
+        if not geojson_files:
+            logging.error(f"No GeoJSON files generated for grid: {grid}")
+            return jsonify({"error": "No GeoJSON files generated"}), 500
+
+        # Filter URLs for the specific table
+        file_links = [{
+            "name": os.path.splitext(filename)[0],
+            "url": url_for('download_file', filename=filename, _external=True, _scheme='https')
+        } for filename in geojson_files if table_name in filename]
+
+        if not file_links:
+            logging.error(f"No GeoJSON files found for table: {table_name} in grid: {grid}")
+            return jsonify({"error": f"No GeoJSON files found for table: {table_name}"}), 404
+
+        return jsonify(file_links)
+    except Exception as e:
+        logging.error(f"Error in get_geojson_urls: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
 
 if __name__ == "__main__":
     create_select_function()  # Create the function when the app starts
