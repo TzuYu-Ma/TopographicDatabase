@@ -299,7 +299,7 @@ def download_all_files(grid):
         
 # Route to get url
 @app.route('/<grid>/<table_name>', methods=['GET'])
-def get_geojson_urls(table_name, grid):
+def get_geojson_data(table_name, grid):
     try:
         sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
         geojson_files = database_to_geojson_by_query(sql_query, grid)
@@ -308,19 +308,21 @@ def get_geojson_urls(table_name, grid):
             logging.error(f"No GeoJSON files generated for grid: {grid}")
             return jsonify({"error": "No GeoJSON files generated"}), 500
 
-        # Filter URLs for the specific table
-        file_links = [{
-            "name": os.path.splitext(filename)[0],
-            "url": url_for('download_file', filename=filename, _external=True, _scheme='https')
-        } for filename in geojson_files if table_name in filename]
+        # Find the GeoJSON file for the specific table
+        geojson_data = None
+        for filename in geojson_files:
+            if table_name in filename:
+                with open(filename, 'r') as f:
+                    geojson_data = json.load(f)
+                break
 
-        if not file_links:
-            logging.error(f"No GeoJSON files found for table: {table_name} in grid: {grid}")
-            return jsonify({"error": f"No GeoJSON files found for table: {table_name}"}), 404
+        if not geojson_data:
+            logging.error(f"No GeoJSON file found for table: {table_name} in grid: {grid}")
+            return jsonify({"error": f"No GeoJSON file found for table: {table_name}"}), 404
 
-        return jsonify(file_links)
+        return jsonify(geojson_data)
     except Exception as e:
-        logging.error(f"Error in get_geojson_urls: {e}")
+        logging.error(f"Error in get_geojson_data: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
 
 if __name__ == "__main__":
