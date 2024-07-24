@@ -42,32 +42,33 @@ def create_select_function():
                         FROM 
                             %I t
                         JOIN (
-                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            SELECT ST_MakeValid(ST_Transform(shape, 4326)) AS shape_4326 
                             FROM grd_100k
                             WHERE grd_100k.grid = %L
-                                        
+                                                    
                             UNION ALL
-                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            SELECT ST_MakeValid(ST_Transform(shape, 4326)) AS shape_4326 
                             FROM grd_50k
                             WHERE grd_50k.grid = %L
-                            
-                            UNION ALL
-                            SELECT ST_Transform(shape, 4326) AS shape_4326 
-                            FROM grd
-                            WHERE grd.grid = %L		
                                         
                             UNION ALL
-                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            SELECT ST_MakeValid(ST_Transform(shape, 4326)) AS shape_4326 
+                            FROM grd
+                            WHERE grd.grid = %L		
+                                                    
+                            UNION ALL
+                            SELECT ST_MakeValid(ST_Transform(shape, 4326)) AS shape_4326 
                             FROM county_boundary
                             WHERE county_boundary.countycode = %L			
                         ) county 
-                        ON ST_Intersects(ST_Transform(t.shape, 4326), county.shape_4326)
+                        ON ST_Intersects(ST_Transform(ST_MakeValid(t.shape), 4326), county.shape_4326)
                     ', table_rec.tablename, table_rec.tablename, grid_value, grid_value, grid_value, grid_value);
-
+            
                     RETURN QUERY EXECUTE sql_query;
                 END LOOP;
             END;
             $$ LANGUAGE plpgsql;
+
             """
             cur.execute(create_function_query)
             conn.commit()
