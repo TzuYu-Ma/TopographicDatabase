@@ -126,10 +126,10 @@ def index():
     </html>
     """)
 
-# create a general DB to GeoJSON function based on a SQL query
-def database_to_geojson_by_query(sql_query, grid):
+# Create a general DB to GeoJSON function based on a SQL query with pagination
+def database_to_geojson_by_query(sql_query, grid, limit=1000, offset=0):
     try:
-        logging.debug(f"Executing SQL query: {sql_query}")
+        logging.debug(f"Executing SQL query: {sql_query} with limit {limit} and offset {offset}")
         conn = psycopg2.connect(
             host=os.environ.get("DB_HOST"),
             database=os.environ.get("DB_NAME"),
@@ -138,7 +138,8 @@ def database_to_geojson_by_query(sql_query, grid):
             port=os.environ.get("DB_PORT"),
         )
         with conn.cursor() as cur:
-            cur.execute(sql_query)
+            paginated_query = f"{sql_query} LIMIT {limit} OFFSET {offset}"
+            cur.execute(paginated_query)
             rows = cur.fetchall()
         conn.close()
 
@@ -191,10 +192,19 @@ def database_to_geojson_by_query(sql_query, grid):
 @app.route('/<grid>', methods=['GET'])
 def get_json(grid):
     try:
+        page_size = 1000
         sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
-        geojson_files = database_to_geojson_by_query(sql_query, grid)
-        
-        if not geojson_files:
+        all_files = []
+        offset = 0
+
+        while True:
+            geojson_files = database_to_geojson_by_query(sql_query, grid, limit=page_size, offset=offset)
+            if not geojson_files:
+                break
+            all_files.extend(geojson_files)
+            offset += page_size
+
+        if not all_files:
             logging.error(f"No GeoJSON files generated for grid: {grid}")
             return "No GeoJSON files generated", 500
 
@@ -202,7 +212,7 @@ def get_json(grid):
         file_links = [{
             "name": os.path.splitext(filename)[0],
             "url": url_for('download_file', filename=filename, _external=True, _scheme='https')
-        } for filename in geojson_files]
+        } for filename in all_files]
 
         # Generate HTML links for easy clicking
         html_links = ''.join([f'<li><a href="{file["url"]}">{file["name"]}</a></li>' for file in file_links])
@@ -272,7 +282,6 @@ def get_json(grid):
         </html>
         """)
 
-
     except Exception as e:
         logging.error(f"Error in get_json: {e}")
         return "Internal Server Error", 500
@@ -291,15 +300,24 @@ def download_file(filename):
 def download_all_files(grid):
     try:
         sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
-        geojson_files = database_to_geojson_by_query(sql_query, grid)
+        all_files = []
+        offset = 0
+        page_size = 1000
+
+        while True:
+            geojson_files = database_to_geojson_by_query(sql_query, grid, limit=page_size, offset=offset)
+            if not geojson_files:
+                break
+            all_files.extend(geojson_files)
+            offset += page_size
         
-        if not geojson_files:
+        if not all_files:
             logging.error(f"No GeoJSON files to zip for grid: {grid}")
             return "No GeoJSON files to zip", 500
 
         zip_filename = f"{grid}_geojson_files.zip"
         with zipfile.ZipFile(zip_filename, 'w') as zipf:
-            for geojson_file in geojson_files:
+            for geojson_file in all_files:
                 zipf.write(geojson_file)
         
         return send_file(zip_filename, as_attachment=True)
@@ -312,15 +330,24 @@ def download_all_files(grid):
 def get_geojson_data(table_name, grid):
     try:
         sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
-        geojson_files = database_to_geojson_by_query(sql_query, grid)
+        all_files = []
+        offset = 0
+        page_size = 1000
+
+        while True:
+            geojson_files = database_to_geojson_by_query(sql_query, grid, limit=page_size, offset=offset)
+            if not geojson_files:
+                break
+            all_files.extend(geojson_files)
+            offset += page_size
         
-        if not geojson_files:
+        if not all_files:
             logging.error(f"No GeoJSON files generated for grid: {grid}")
             return jsonify({"error": "No GeoJSON files generated"}), 500
 
         # Find the GeoJSON file for the specific table
         geojson_data = None
-        for filename in geojson_files:
+        for filename in all_files:
             if table_name in filename:
                 with open(filename, 'r') as f:
                     geojson_data = json.load(f)
