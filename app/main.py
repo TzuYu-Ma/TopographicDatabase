@@ -128,7 +128,7 @@ def index():
     """)
 
 # create a general DB to GeoJSON function based on a SQL query
-def database_to_geojson_by_query(sql_query, grid):
+def database_to_geojson_by_query(sql_query, grid, limit=1000, offset=0):
     try:
         logging.debug(f"Executing SQL query: {sql_query}")
         conn = psycopg2.connect(
@@ -139,10 +139,11 @@ def database_to_geojson_by_query(sql_query, grid):
             port=os.environ.get("DB_PORT"),
         )
         with conn.cursor() as cur:
-            cur.execute(sql_query)
+            paginated_query = f"{sql_query} LIMIT {limit} OFFSET {offset}"
+            cur.execute(paginated_query)
             rows = cur.fetchall()
         conn.close()
-
+        
         if not rows:
             logging.error(f"No rows returned for query: {sql_query}")
             return []
@@ -188,31 +189,36 @@ def database_to_geojson_by_query(sql_query, grid):
         logging.error(f"Error in database_to_geojson_by_query: {e}")
         return []
 
+
 # Route to generate and list GeoJSON files with download links
 @app.route('/<grid>', methods=['GET'])
 def get_json(grid):
     try:
+        page_size = 1000
         sql_query = f"SELECT * FROM select_tables_within_county('{grid}');"
-        geojson_files = database_to_geojson_by_query(sql_query, grid)
-        
-        if not geojson_files:
+        all_files = []
+        offset = 0
+
+        while True:
+            geojson_files = database_to_geojson_by_query(sql_query, grid, limit=page_size, offset=offset)
+            if not geojson_files:
+                break
+            all_files.extend(geojson_files)
+            offset += page_size
+
+        if not all_files:
             logging.error(f"No GeoJSON files generated for grid: {grid}")
             return "No GeoJSON files generated", 500
 
-        # Generate download URLs for the files
         file_links = [{
             "name": os.path.splitext(filename)[0],
             "url": url_for('download_file', filename=filename, _external=True, _scheme='https')
-        } for filename in geojson_files]
+        } for filename in all_files]
 
-        # Generate HTML links for easy clicking
         html_links = ''.join([f'<li><a href="{file["url"]}">{file["name"]}</a></li>' for file in file_links])
-
-        # Add link for downloading all files as a ZIP archive
         zip_url = url_for('download_all_files', grid=grid, _external=True, _scheme='https')
         zip_link = f'<li><a href="{zip_url}">Download All as ZIP</a></li>'
 
-        # Return an HTML page with clickable links
         return render_template_string(f"""
         <html>
             <head>
@@ -272,7 +278,6 @@ def get_json(grid):
             </body>
         </html>
         """)
-
 
     except Exception as e:
         logging.error(f"Error in get_json: {e}")
