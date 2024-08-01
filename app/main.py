@@ -36,34 +36,32 @@ def create_select_function():
                     AND tablename != 'spatial_ref_sys'
                 LOOP
                     sql_query := format('
+                        WITH county AS (
+                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            FROM grd_100k
+                            WHERE grd_100k.grid = %L
+                            UNION ALL
+                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            FROM grd_50k
+                            WHERE grd_50k.grid = %L
+                            UNION ALL
+                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            FROM grd
+                            WHERE grd.grid = %L		
+                            UNION ALL
+                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            FROM county_boundary
+                            WHERE county_boundary.countycode = %L			
+                        )
                         SELECT 
                             %L AS table_name,
                             jsonb_agg(t.*) AS record
                         FROM 
                             %I t
-                        JOIN (
-                            SELECT ST_Transform(shape, 4326) AS shape_4326 
-                            FROM grd_100k
-                            WHERE grd_100k.grid = %L
-                                        
-                            UNION ALL
-                            SELECT ST_Transform(shape, 4326) AS shape_4326 
-                            FROM grd_50k
-                            WHERE grd_50k.grid = %L
-                            
-                            UNION ALL
-                            SELECT ST_Transform(shape, 4326) AS shape_4326 
-                            FROM grd
-                            WHERE grd.grid = %L		
-                                        
-                            UNION ALL
-                            SELECT ST_Transform(shape, 4326) AS shape_4326 
-                            FROM county_boundary
-                            WHERE county_boundary.countycode = %L			
-                        ) county 
+                        JOIN county 
                         ON ST_Intersects(ST_Transform(t.shape, 4326), county.shape_4326)
-                    ', table_rec.tablename, table_rec.tablename, grid_value, grid_value, grid_value, grid_value);
-
+                    ', grid_value, grid_value, grid_value, grid_value, table_rec.tablename, table_rec.tablename);
+            
                     RETURN QUERY EXECUTE sql_query;
                 END LOOP;
             END;
