@@ -265,8 +265,8 @@ def get_json(grid):
                 <div class="container">
                     <h1>Download GeoJSON Files</h1>
                     <ul>
-                        {html_links}
                         {zip_link}
+                        {html_links}
                     </ul>
                 </div>
             </body>
