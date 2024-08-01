@@ -60,12 +60,14 @@ def create_select_function():
                             %I t
                         JOIN county 
                         ON ST_Intersects(t.shape, county.shape)
+                        WHERE ST_IsValid(t.shape)
                     ', grid_value, grid_value, grid_value, grid_value, table_rec.tablename, table_rec.tablename);
             
                     RETURN QUERY EXECUTE sql_query;
                 END LOOP;
             END;
             $$ LANGUAGE plpgsql;
+
 
             """
             cur.execute(create_function_query)
