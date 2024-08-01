@@ -37,35 +37,36 @@ def create_select_function():
                 LOOP
                     sql_query := format('
                         WITH county AS (
-                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            SELECT shape 
                             FROM grd_100k
                             WHERE grd_100k.grid = %L
                             UNION ALL
-                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            SELECT shape 
                             FROM grd_50k
                             WHERE grd_50k.grid = %L
                             UNION ALL
-                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            SELECT shape 
                             FROM grd
                             WHERE grd.grid = %L		
                             UNION ALL
-                            SELECT ST_Transform(shape, 4326) AS shape_4326 
+                            SELECT shape 
                             FROM county_boundary
                             WHERE county_boundary.countycode = %L			
                         )
                         SELECT 
                             %L AS table_name,
-                            jsonb_agg(t.*) AS record
+                            jsonb_agg(to_jsonb(t.*) || jsonb_build_object(''shape'', ST_AsGeoJSON(ST_Transform(t.shape, 4326))::jsonb)) AS record
                         FROM 
                             %I t
                         JOIN county 
-                        ON ST_Intersects(ST_Transform(t.shape, 4326), county.shape_4326)
+                        ON ST_Intersects(t.shape, county.shape)
                     ', grid_value, grid_value, grid_value, grid_value, table_rec.tablename, table_rec.tablename);
             
                     RETURN QUERY EXECUTE sql_query;
                 END LOOP;
             END;
             $$ LANGUAGE plpgsql;
+
             """
             cur.execute(create_function_query)
             conn.commit()
