@@ -46,8 +46,8 @@ def create_select_function():
                             WHERE grd_50k.grid = %L
                             UNION ALL
                             SELECT shape 
-                            FROM grd
-                            WHERE grd.grid = %L		
+                            FROM grd_25k
+                            WHERE grd_25k.grid = %L		
                             UNION ALL
                             SELECT shape 
                             FROM county_boundary
@@ -55,7 +55,7 @@ def create_select_function():
                         )
                         SELECT 
                             %L AS table_name,
-                            jsonb_agg(to_jsonb(t.*) || jsonb_build_object(''shape'', ST_AsGeoJSON(ST_Transform(t.shape, 4326))::jsonb)) AS record
+                            jsonb_agg(t.*) AS record
                         FROM 
                             %I t
                         JOIN county 
