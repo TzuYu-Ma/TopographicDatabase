@@ -11,13 +11,11 @@ Access the WebMap using the following URL:
 
 ## Data URLs for GeoJSON
 
-**[Root URL return](/images/webpage.jpg)**
-
 - **Root URL:**
   ```plaintext
   https://cloudrun-zjoivcfvsa-uc.a.run.app
   ```
-
+![Root URL return](/images/webpage.jpg)
 ### Retrieve Data by Grid Number
 
 You can retrieve data by using the grid number:
@@ -104,8 +102,7 @@ https://cloudrun-zjoivcfvsa-uc.a.run.app/{grid_number}/{feature_class}
 
 This URL can be used in AGOL (ArcGIS Online).
 
-### Feature Classes
-For example: 
+#### Feature Classes examples:
 - **Bridge line**: `bridgel`
 - **Building Area**: `builtupa`
 - **Transportation Point**: `transp`
