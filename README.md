@@ -11,14 +11,21 @@ Access the WebMap using the following URL:
 
 ## Data URLs for GeoJSON
 
+**[Root URL return](/images/webpage.jpg)**
+
 - **Root URL:**
-  - `https://cloudrun-zjoivcfvsa-uc.a.run.app`
+  ```plaintext
+  https://cloudrun-zjoivcfvsa-uc.a.run.app
+  ```
 
 ### Retrieve Data by Grid Number
 
 You can retrieve data by using the grid number:
 
-- **URL Format:** `https://cloudrun-zjoivcfvsa-uc.a.run.app/{grid_number}`
+- **URL Format:** 
+```plaintext
+https://cloudrun-zjoivcfvsa-uc.a.run.app/{grid_number}
+```
 
 #### 25k Grid Numbers
 
@@ -65,7 +72,10 @@ You can retrieve data by using the grid number:
 
 You can retrieve data by using the county ID:
 
-- **URL Format:** `https://cloudrun-zjoivcfvsa-uc.a.run.app/{county_id}`
+- **URL Format:** 
+```plaintext
+https://cloudrun-zjoivcfvsa-uc.a.run.app/{county_id}
+```
 
 #### County IDs
 
@@ -87,7 +97,10 @@ You can retrieve data by using the county ID:
 
 You can also retrieve specific data by using both the grid number and the feature class:
 
-- **URL Format:** `https://cloudrun-zjoivcfvsa-uc.a.run.app/{grid_number}/{feature_class}`
+- **URL Format:** 
+```plaintext
+https://cloudrun-zjoivcfvsa-uc.a.run.app/{grid_number}/{feature_class}
+```
 
 This URL can be used in AGOL (ArcGIS Online).
 
