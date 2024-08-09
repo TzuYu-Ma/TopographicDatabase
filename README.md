@@ -15,7 +15,7 @@ Access the WebMap using the following URL:
   ```plaintext
   https://cloudrun-zjoivcfvsa-uc.a.run.app
   ```
-![Root URL return](/images/webpage.jpg)
+![Root URL return](/images/webpage.png)
 ### Retrieve Data by Grid Number
 
 You can retrieve data by using the grid number:
