@@ -89,7 +89,7 @@ def index():
     </head>
     <body>
         <div class="container">
-            <h1>歡迎</h1>
+            <h1>歡迎來到第52屆測發會</h1>
         </div>
     </body>
     </html>
