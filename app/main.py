@@ -117,8 +117,11 @@ def index():
     </head>
     <body>
         <div class="container">
-            <h1>歡迎來到第52屆測發會</h1>
-
+            <h1>全臺地形圖資料庫下載</h1>
+            <p>此網頁提供 GeoJSON 格式下載，請<a href="https://github.com/TzuYu-Ma/cloudrun/tree/main">參照圖幅圖號或縣市代碼</a>，將所需圖號、縣市代碼及向量名稱複製到網址欄後，按 Enter。</p>
+            <p>例: 若需要 93203NW 圖號圖資，請在網址欄最右邊加上 "/93203NW"</p>
+            <p>例: 若需要 屏東縣 地形圖資料，請在網址欄最右邊加上 "/10013"</p>
+            <p>例: 若需要93203NW 道路資料之 URL ，請在網址欄最右邊加上 "/93203NW/roadl"</p>
         </div>
     </body>
     </html>
